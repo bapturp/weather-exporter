@@ -25,7 +25,7 @@ def app(city, key):
         time.sleep(10)
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='weather exporter args port')
+    parser = argparse.ArgumentParser(description='weather exporter args port, city and key')
 
     parser.add_argument(
         '-p', '--port',
