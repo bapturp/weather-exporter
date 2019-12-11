@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-import sys, time, argparse
+import sys
+import time
+import argparse
 
 from prometheus_client import start_http_server
 from prometheus_client.core import REGISTRY, GaugeMetricFamily
@@ -69,6 +71,7 @@ def parse_args():
 
     return parser.parse_args()
 
+
 def main():
     try:
         args = parse_args()
@@ -78,6 +81,7 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         sys.exit('Interrupted')
+
 
 if __name__ == '__main__':
     main()
