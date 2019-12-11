@@ -1,28 +1,43 @@
+#!/usr/bin/env python
 import sys, time, argparse
 
-from prometheus_client import start_http_server, Gauge
+from prometheus_client import start_http_server
+from prometheus_client.core import REGISTRY, GaugeMetricFamily
+
 import pyowm
 
-def app(city, key):
-    owm = pyowm.OWM(key)
 
-    temperature = Gauge('temperature', 'Temperature, Celsius', ['city'])
-    wind_speed = Gauge('wind_speed', 'Wind speed, m/s', ['city'])
-    wind_direction = Gauge('wind_direction', 'Wind direction, deg', ['city'])
-    humidity = Gauge('humidity', 'Humidity, % ', ['city'])
-    pressure = Gauge('pressure', 'Pressure, % hPa', ['city'])
-    clouds = Gauge('clouds', 'Cloudiness , %', ['city'])
+class WeatherCollector:
+    def __init__(self, city, key):
+        self.city = city
+        self.key = key
+        self.owm = pyowm.OWM(self.key)
+    
+    def get_weather(self):
+        observation = self.owm.weather_at_place(self.city)
+        return observation.get_weather()
 
-    while True:
-        observation = owm.weather_at_place(city)
-        w = observation.get_weather()
+    def collect(self):
+        weather = self.get_weather()
+        
+        temperature = GaugeMetricFamily('temperature', 'Temperature, Celsius', labels=['city'])
+        temperature.add_metric([self.city], weather.get_temperature('celsius')['temp'])
+        
+        humidity = GaugeMetricFamily('humidity', 'Humidity, %', labels=['city'])
+        humidity.add_metric([self.city], weather.get_humidity())
 
-        temperature.labels(city).set(w.get_temperature('celsius')['temp'])
-        wind_direction.labels(city).set(w.get_wind()['deg'])
-        humidity.labels(city).set(w.get_humidity())
-        pressure.labels(city).set(w.get_pressure()['press'])
-        clouds.labels(city).set(w.get_clouds())
-        time.sleep(10)
+        wind_direction = GaugeMetricFamily('wind_direction', 'Wind direction, deg', labels=['city'])
+        wind_direction.add_metric([self.city], weather.get_wind()['deg'])
+
+        pressure = GaugeMetricFamily('pressure', 'Pressure, % hPa', labels=['city'])
+        pressure.add_metric([self.city], weather.get_pressure()['press'])
+
+        clouds = GaugeMetricFamily('clouds', 'Cloudiness, %', labels=['city'])
+        clouds.add_metric([self.city], weather.get_clouds())
+
+        for metric in (temperature, humidity, wind_direction, pressure, clouds):
+            yield metric
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='weather exporter args port, city and key')
@@ -33,7 +48,7 @@ def parse_args():
         required=False,
         type=int,
         help='Listen to this port',
-        default='9000'
+        default='9123'
     )
 
     parser.add_argument(
@@ -57,11 +72,12 @@ def parse_args():
 def main():
     try:
         args = parse_args()
+        REGISTRY.register(WeatherCollector(args.city, args.key))
         start_http_server(args.port)
-        app(city=args.city, key=args.key)
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
         sys.exit('Interrupted')
 
 if __name__ == '__main__':
     main()
-
